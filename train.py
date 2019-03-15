@@ -6,19 +6,18 @@ from torchvision import datasets
 from torchvision.transforms import transforms
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
-from numpy import max, sum
 
 TRAIN_FOLDER = '/home/alfarihfz/data/Pulmonary/train/'
 TEST_FOLDER = '/home/alfarihfz/data/Pulmonary/test/'
-BATCH_SIZE=8
-EPOCH = 10000
+BATCH_SIZE=64
+EPOCH = 500
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+print(torch.cuda.is_available())
 def image_loader(path):
     return Image.open(path).convert('RGB')
 
 transform = transforms.Compose(
-    [transforms.Resize((640, 480)),
+    [transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ]
@@ -28,7 +27,7 @@ trainData = datasets.DatasetFolder(root=TRAIN_FOLDER,
                                     loader=image_loader,
                                     extensions=['jpeg', 'png'],
                                     transform=transform)
-
+print(trainData.classes)
 testData = datasets.DatasetFolder(root=TEST_FOLDER,
                                     loader=image_loader,
                                     extensions=['jpeg', 'png'],
@@ -42,12 +41,15 @@ data_size = {
     'train': len(trainData),
     'test': len(testData)
 }
-
+print(data_size['train'], data_size['test'])
 def train():
-    model = models.resnet152(pretrained=False, num_classes=3).to(DEVICE)
-
+    model = models.resnet34(pretrained=False)
+    print(model.fc.in_features)
+    print(model.fc.out_features)
     nOfFeatures = model.fc.in_features
     model.fc = nn.Linear(nOfFeatures, 3)
+    print(model.fc.out_features)
+    model.to(DEVICE)
 
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss().to(DEVICE)
@@ -65,19 +67,22 @@ def train():
                 model.train(False)
             for i, data in enumerate(train_test[mode]):
                     img, label = data
-                    if use_gpu: img, label = img.to(DEVICE), label.to(DEVICE)
-                    else: img, label = Variable(img), Variable(label)
+                    img, label = img.to(DEVICE), label.to(DEVICE)
 
                     optimizer.zero_grad()
 
                     predicts = model(img)
-                    predict = max(predicts.data)
-                    loss = criterion(predict, label)
+                    _, predict = torch.max(predicts.data, 1)
+                    loss = criterion(predicts, label)
                     if mode == 'train':
                         loss.backward()
                         optimizer.step()
-                    batch_loss += loss.data[0]
-                    nOfCorrect += sum(predict == label.data)
+                    batch_loss += loss.item()
+                    nOfCorrect += torch.sum(predict == label.data)
+                    if i%16 == 0 and i != 0:
+                        print('Batch  Loss: {:.4f} Acc: {:.4f}'.format(
+                                batch_loss, nOfCorrect))
+
             epoch_loss = batch_loss/data_size[mode]
             epoch_accuracy = nOfCorrect/data_size[mode]
 
@@ -88,7 +93,7 @@ def train():
                 best_acc = epoch_accuracy
                 best_model = model.state_dict()
 
-        if epoch%1000 == 0 and epoch != 0:
+        if epoch%50 == 0 and epoch != 0:
             torch.save(best_model, 'models/%d_%d.pth'%(epoch, best_acc))
 
 if __name__ == '__main__':
