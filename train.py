@@ -56,11 +56,12 @@ def train():
 
     best_acc = 0
     best_model = model.state_dict()
+    best_optimizer = optimizer.state_dict()
 
     for epoch in range(EPOCH):
         for mode in ['train', 'test']:
             batch_loss = 0.0
-            nOfCorrect = 0
+            nOfCorrect = 0.0
             if mode == 'train':
                 model.train(True)
             else:
@@ -78,23 +79,25 @@ def train():
                         loss.backward()
                         optimizer.step()
                     batch_loss += loss.item()
-                    nOfCorrect += torch.sum(predict == label.data)
+                    nOfCorrect += torch.sum(predict == label.data).item()
+
                     if i%16 == 0 and i != 0:
-                        print('Batch  Loss: {:.4f} Acc: {:.4f}'.format(
+                        print('Batch Loss: {:.4f} Acc: {:.4f}'.format(
                                 batch_loss, nOfCorrect))
 
             epoch_loss = batch_loss/data_size[mode]
             epoch_accuracy = nOfCorrect/data_size[mode]
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                mode, epoch_loss, epoch_accuracy))
+            print('Epoch {} {} Loss: {:.4f} Acc: {:.4f}'.format(
+                epoch, mode, epoch_loss, epoch_accuracy))
 
             if mode == 'test' and epoch_accuracy > best_acc:
                 best_acc = epoch_accuracy
                 best_model = model.state_dict()
 
-        if epoch%50 == 0 and epoch != 0:
-            torch.save(best_model, 'models/%d_%d.pth'%(epoch, best_acc))
+        if epoch%50 == 0:
+            print('SAVING MODEL')
+            torch.save({'optimizer':best_optimizer, 'best_state':best_model}, 'models/%d_%d.pth'%(epoch, best_acc))
 
 if __name__ == '__main__':
     train()
