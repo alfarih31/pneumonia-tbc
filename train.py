@@ -6,6 +6,14 @@ from torchvision import datasets
 from torchvision.transforms import transforms
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
+import argparse
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--resume", help="Directory which will contain the model checkpoints.",
+default=True, type=bool)
+ap.add_argument("--model", help="Directory which will contain the model checkpoints.",
+default="models/0_0.pth")
+args = vars(ap.parse_args())
 
 TRAIN_FOLDER = '/home/alfarihfz/data/Pulmonary/train/'
 TEST_FOLDER = '/home/alfarihfz/data/Pulmonary/test/'
@@ -53,6 +61,10 @@ def train():
 
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss().to(DEVICE)
+    if args['resume']:
+        checkpoint = torch.load(args['model'])
+        model.load_state_dict(checkpoint['best_model'])
+        optimizer.load_state_dict(checkpoint['best_optimizer'])
 
     best_acc = 0
     best_model = model.state_dict()
@@ -94,6 +106,7 @@ def train():
             if mode == 'test' and epoch_accuracy > best_acc:
                 best_acc = epoch_accuracy
                 best_model = model.state_dict()
+                best_optimizer = optimizer.state_dict()
 
         if epoch%50 == 0:
             print('SAVING MODEL')
