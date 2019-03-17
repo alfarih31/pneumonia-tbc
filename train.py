@@ -9,10 +9,11 @@ from PIL import Image
 import argparse
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--resume", help="Directory which will contain the model checkpoints.",
-default=True, type=bool)
+ap.add_argument("--resume", help="True to continue train from certain epoch",
+default=False, type=bool)
 ap.add_argument("--model", help="Directory which will contain the model checkpoints.",
 default="models/0_0.pth")
+ap.add_argument("--last_epoch", help="Last Epoch", type=int, default=0)
 args = vars(ap.parse_args())
 
 TRAIN_FOLDER = '/home/alfarihfz/data/Pulmonary/train/'
@@ -63,14 +64,21 @@ def train():
     criterion = nn.CrossEntropyLoss().to(DEVICE)
     if args['resume']:
         checkpoint = torch.load(args['model'])
-        model.load_state_dict(checkpoint['best_model'])
-        optimizer.load_state_dict(checkpoint['best_optimizer'])
+        model.load_state_dict(checkpoint['best_state'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+    scheduler = torch.optim.lr_scheduler.StepLR(
+             optimizer,
+             step_size=2,
+             gamma=0.1,)
+    for k in range(args['last_epoch']):
+        scheduler.step()
 
     best_acc = 0
     best_model = model.state_dict()
     best_optimizer = optimizer.state_dict()
 
     for epoch in range(EPOCH):
+        scheduler.step()
         for mode in ['train', 'test']:
             batch_loss = 0.0
             nOfCorrect = 0.0
@@ -108,9 +116,9 @@ def train():
                 best_model = model.state_dict()
                 best_optimizer = optimizer.state_dict()
 
-        if epoch%50 == 0:
+        if epoch%15 == 0:
             print('SAVING MODEL')
-            torch.save({'optimizer':best_optimizer, 'best_state':best_model}, 'models/%d_%d.pth'%(epoch, best_acc))
+            torch.save({'optimizer':best_optimizer, 'best_state':best_model}, 'models/%d_%.2f.pth'%(epoch, best_acc))
 
 if __name__ == '__main__':
     train()
